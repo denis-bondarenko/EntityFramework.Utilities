@@ -29,6 +29,7 @@ namespace Tests.FakeDomain
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.HasDefaultSchema("DefaultSchema");
             modelBuilder.ComplexType<AuthorInfo>();
             modelBuilder.ComplexType<Address>();
 
