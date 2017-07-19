@@ -47,7 +47,7 @@ namespace EntityFramework.Utilities
             return string.Format("UPDATE [{0}].[{1}] SET {2} {3}", predicateQueryInfo.Schema, predicateQueryInfo.Table, updateSql, predicateQueryInfo.WhereSql);
         }
 
-        public void InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize)
+        public void InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? bulkCopyTimeout, int? batchSize)
         {
             using (var reader = new EFDataReader<T>(items, properties))
             {
@@ -59,6 +59,7 @@ namespace EntityFramework.Utilities
                 using (SqlBulkCopy copy = new SqlBulkCopy(con))
                 {
                     copy.BatchSize = Math.Min(reader.RecordsAffected, batchSize ?? 15000); //default batch size
+                    copy.BulkCopyTimeout = bulkCopyTimeout ?? 30;
                     if (!string.IsNullOrWhiteSpace(schema))
                     {
                         copy.DestinationTableName = string.Format("[{0}].[{1}]", schema, tableName);
@@ -81,7 +82,7 @@ namespace EntityFramework.Utilities
         }
 
 
-        public void UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, UpdateSpecification<T> updateSpecification)
+        public void UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? bulkCopyTimeout, int? batchSize, UpdateSpecification<T> updateSpecification)
         {
             var tempTableName = "#temp_" + tableName + "_" + DateTime.Now.Ticks;
             var columnsToUpdate = updateSpecification.Properties.Select(p => p.GetPropertyName()).ToDictionary(x => x);
@@ -115,20 +116,16 @@ namespace EntityFramework.Utilities
             using (var dCommand = new SqlCommand(string.Format("DROP table {0}.[{1}]", schema, tempTableName), con))
             {
                 createCommand.ExecuteNonQuery();
-                InsertItems(items, schema, tempTableName, filtered, storeConnection, batchSize);
+                InsertItems(items, schema, tempTableName, filtered, storeConnection, bulkCopyTimeout, batchSize);
                 mCommand.ExecuteNonQuery();
                 dCommand.ExecuteNonQuery();
             }
-
-            
         }
-
 
         public bool CanHandle(System.Data.Common.DbConnection storeConnection)
         {
             return storeConnection is SqlConnection;
         }
-
 
         public QueryInformation GetQueryInformation<T>(System.Data.Entity.Core.Objects.ObjectQuery<T> query)
         {
