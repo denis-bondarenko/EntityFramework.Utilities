@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>EFUtilities</id>
+    <version>1.0.3</version>
+    <title>EFUtilities</title>
+    <authors>Mikael Eliasson</authors>
+    <owners>Mikael Eliasson</owners>
+    <projectUrl>https://github.com/LambdaCruiser/EntityFramework.Utilities</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Adds batch operations to Entity Framework when using MS Sql server</description>
+    <releaseNotes>Customized version by Marcin Marczak.</releaseNotes>
+    <copyright>Copyright 2017</copyright>
+    <tags>EF, Batch, BulkCopy, SQL</tags>
+  </metadata>
+</package>
