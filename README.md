@@ -1,3 +1,6 @@
+## Install from NuGet
+https://www.nuget.org/packages/EntityFramework.Utilities.Denis
+
 ## The goal
 
 [![Join the chat at https://gitter.im/MikaelEliasson/EntityFramework.Utilities](https://badges.gitter.im/MikaelEliasson/EntityFramework.Utilities.svg)](https://gitter.im/MikaelEliasson/EntityFramework.Utilities?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
