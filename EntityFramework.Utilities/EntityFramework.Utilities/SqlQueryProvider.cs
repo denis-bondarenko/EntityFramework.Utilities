@@ -59,7 +59,7 @@ namespace EntityFramework.Utilities
                 using (SqlBulkCopy copy = new SqlBulkCopy(con))
                 {
                     copy.BatchSize = Math.Min(reader.RecordsAffected, batchSize ?? 15000); //default batch size
-                    copy.BulkCopyTimeout = bulkCopyTimeout ?? 30;
+                    copy.BulkCopyTimeout = bulkCopyTimeout ?? 0;
                     if (!string.IsNullOrWhiteSpace(schema))
                     {
                         copy.DestinationTableName = string.Format("[{0}].[{1}]", schema, tableName);
@@ -115,6 +115,10 @@ namespace EntityFramework.Utilities
             using (var mCommand = new SqlCommand(mergeCommand, con))
             using (var dCommand = new SqlCommand(string.Format("DROP table {0}.[{1}]", schema, tempTableName), con))
             {
+                createCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+                mCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+                dCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+
                 createCommand.ExecuteNonQuery();
                 InsertItems(items, schema, tempTableName, filtered, storeConnection, bulkCopyTimeout, batchSize);
                 mCommand.ExecuteNonQuery();
