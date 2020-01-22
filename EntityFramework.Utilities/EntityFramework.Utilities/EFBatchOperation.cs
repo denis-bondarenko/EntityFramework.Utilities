@@ -25,6 +25,17 @@ namespace EntityFramework.Utilities
         void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T; 
         IEFBatchOperationFiltered<TContext, T> Where(Expression<Func<T, bool>> predicate);
 
+        /// <summary>
+        /// Bulk insert all items if the Provider supports it. Otherwise it will use the default insert unless Configuration.DisableDefaultFallback is set to true in which case it would throw an exception.
+        /// CHECK CONSTRAINTS OPTION IS ON
+        /// </summary>
+        /// <param name="items">The items to insert</param>
+        /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
+        /// <param name="bulkCopyTimeout">Command timeout for bulk operations in seconds. SqlProvider uses 30 seconds as default. </param>
+        /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>        
+        void InsertAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T; 
+        IEFBatchOperationFiltered<TContext, T> Where(Expression<Func<T, bool>> predicate);
+
 
         /// <summary>
         /// Bulk update all items if the Provider supports it. Otherwise it will use the default update unless Configuration.DisableDefaultFallback is set to true in which case it would throw an exception.
@@ -36,6 +47,18 @@ namespace EntityFramework.Utilities
         /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
         /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
         void UpdateAll<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, int? bulkCopyTimeout = null, DbConnection connection = null, int? batchSize = null) where TEntity : class, T;
+
+        /// <summary>
+        /// Bulk update all items if the Provider supports it. Otherwise it will use the default update unless Configuration.DisableDefaultFallback is set to true in which case it would throw an exception.
+        /// CHECK CONSTRAINTS OPTION IS ON
+        /// </summary>
+        /// <typeparam name="TEntity"></typeparam>
+        /// <param name="items">The items to update</param>
+        /// <param name="updateSpecification">Define which columns to update</param>
+        /// <param name="bulkCopyTimeout">Command timeout for bulk operations in seconds. SqlProvider uses 30 seconds as default. </param>
+        /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
+        /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
+        void UpdateAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, int? bulkCopyTimeout = null, DbConnection connection = null, int? batchSize = null) where TEntity : class, T;
     }
 
     public class UpdateSpecification<T>
@@ -98,6 +121,46 @@ namespace EntityFramework.Utilities
         /// <param name="bulkCopyTimeout">Command timeout for bulk operations in seconds. SqlProvider uses 30 seconds as default. </param>
         /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
         /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
+        public void InsertAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T
+        {
+            var con = context.Connection as EntityConnection;
+            if (con == null && connection == null)
+            {
+                Configuration.Log("No provider could be found because the Connection didn't implement System.Data.EntityClient.EntityConnection");
+                Fallbacks.DefaultInsertAll(context, items);
+            }
+
+            var connectionToUse = connection ?? con.StoreConnection;
+            var currentType = typeof(TEntity);
+            var provider = Configuration.Providers.FirstOrDefault(p => p.CanHandle(connectionToUse));
+            if (provider != null && provider.CanInsert)
+            {
+                var mapping = EntityFramework.Utilities.EfMappingFactory.GetMappingsForContext(this.dbContext);
+                var typeMapping = mapping.TypeMappings[typeof(T)];
+                var tableMapping = typeMapping.TableMappings.First();
+
+                var properties = tableMapping.PropertyMappings
+                    .Where(p => currentType.IsSubclassOf(p.ForEntityType) || p.ForEntityType == currentType)
+                    .Select(p => new ColumnMapping { NameInDatabase = p.ColumnName, NameOnObject = p.PropertyName }).ToList();
+                if (tableMapping.TPHConfiguration != null)
+                {
+                    properties.Add(new ColumnMapping
+                    {
+                        NameInDatabase = tableMapping.TPHConfiguration.ColumnName,
+                        StaticValue = tableMapping.TPHConfiguration.Mappings[typeof(TEntity)]
+                    });
+                }
+
+                provider.InsertItemsWithCheckConstraintsOn(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, bulkCopyTimeout, batchSize);
+            }
+            else
+            {
+                Configuration.Log("Found provider: " + (provider == null ? "[]" : provider.GetType().Name) + " for " + connectionToUse.GetType().Name);
+                Fallbacks.DefaultInsertAll(context, items);
+            }
+        }
+
+
         public void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T
         {
             var con = context.Connection as EntityConnection;
@@ -169,6 +232,46 @@ namespace EntityFramework.Utilities
                 var spec = new UpdateSpecification<TEntity>();
                 updateSpecification(spec);
                 provider.UpdateItems(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, bulkCopyTimeout, batchSize, spec);
+            }
+            else
+            {
+                Configuration.Log("Found provider: " + (provider == null ? "[]" : provider.GetType().Name) + " for " + connectionToUse.GetType().Name);
+                Fallbacks.DefaultInsertAll(context, items);
+            }
+        }
+
+
+        public void UpdateAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, int? bulkCopyTimeout = null, DbConnection connection = null, int? batchSize = null) where TEntity : class, T
+        {
+            var con = context.Connection as EntityConnection;
+            if (con == null && connection == null)
+            {
+                Configuration.Log("No provider could be found because the Connection didn't implement System.Data.EntityClient.EntityConnection");
+                Fallbacks.DefaultInsertAll(context, items);
+            }
+
+            var connectionToUse = connection ?? con.StoreConnection;
+            var currentType = typeof(TEntity);
+            var provider = Configuration.Providers.FirstOrDefault(p => p.CanHandle(connectionToUse));
+            if (provider != null && provider.CanBulkUpdate)
+            {
+
+                var mapping = EntityFramework.Utilities.EfMappingFactory.GetMappingsForContext(this.dbContext);
+                var typeMapping = mapping.TypeMappings[typeof(T)];
+                var tableMapping = typeMapping.TableMappings.First();
+
+                var properties = tableMapping.PropertyMappings
+                    .Where(p => currentType.IsSubclassOf(p.ForEntityType) || p.ForEntityType == currentType)
+                    .Select(p => new ColumnMapping { 
+                        NameInDatabase = p.ColumnName, 
+                        NameOnObject = p.PropertyName, 
+                        DataType = p.DataTypeFull,
+                        IsPrimaryKey = p.IsPrimaryKey
+                     }).ToList();
+
+                var spec = new UpdateSpecification<TEntity>();
+                updateSpecification(spec);
+                provider.UpdateItemsWithCheckConstraintsOn(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, bulkCopyTimeout, batchSize, spec);
             }
             else
             {
