@@ -81,6 +81,40 @@ namespace EntityFramework.Utilities
             }
         }
 
+        public void InsertItemsWithCheckConstraintsOn<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? bulkCopyTimeout, int? batchSize)
+        {
+            using (var reader = new EFDataReader<T>(items, properties))
+            {
+                var con = storeConnection as SqlConnection;
+                if (con.State != System.Data.ConnectionState.Open)
+                {
+                    con.Open();
+                }
+                using (SqlBulkCopy copy = new SqlBulkCopy(con, SqlBulkCopyOptions.CheckConstraints))
+                {
+                    copy.BatchSize = Math.Min(reader.RecordsAffected, batchSize ?? 15000); //default batch size
+                    copy.BulkCopyTimeout = bulkCopyTimeout ?? 0;
+                    if (!string.IsNullOrWhiteSpace(schema))
+                    {
+                        copy.DestinationTableName = string.Format("[{0}].[{1}]", schema, tableName);
+                    }
+                    else
+                    {
+                        copy.DestinationTableName = "[" + tableName + "]";
+                    }
+                    
+                    copy.NotifyAfter = 0;
+
+                    foreach (var i in Enumerable.Range(0, reader.FieldCount))
+                    {
+                        copy.ColumnMappings.Add(i, properties[i].NameInDatabase);
+                    }
+                    copy.WriteToServer(reader);
+                    copy.Close();
+                }
+            }
+        }
+
 
         public void UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? bulkCopyTimeout, int? batchSize, UpdateSpecification<T> updateSpecification)
         {
@@ -125,6 +159,52 @@ namespace EntityFramework.Utilities
                 dCommand.ExecuteNonQuery();
             }
         }
+
+
+        public void UpdateItemsWithCheckConstraintsOn<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? bulkCopyTimeout, int? batchSize, UpdateSpecification<T> updateSpecification)
+        {
+            var tempTableName = "#temp_" + tableName + "_" + DateTime.Now.Ticks;
+            var columnsToUpdate = updateSpecification.Properties.Select(p => p.GetPropertyName()).ToDictionary(x => x);
+            var filtered = properties.Where(p => columnsToUpdate.ContainsKey(p.NameOnObject) || p.IsPrimaryKey).ToList();
+            var columns = filtered.Select(c => "[" + c.NameInDatabase + "] " + c.DataType);
+            var pkConstraint = string.Join(", ", properties.Where(p => p.IsPrimaryKey).Select(c => "[" + c.NameInDatabase + "]"));
+
+            var str = string.Format("CREATE TABLE {0}.[{1}]({2}, PRIMARY KEY ({3}))", schema, tempTableName, string.Join(", ", columns), pkConstraint);
+
+            var con = storeConnection as SqlConnection;
+            if (con.State != System.Data.ConnectionState.Open)
+            {
+                con.Open();
+            }
+
+            var setters = string.Join(",", filtered.Where(c => !c.IsPrimaryKey).Select(c => "[" + c.NameInDatabase + "] = TEMP.[" + c.NameInDatabase + "]"));
+            var pks = properties.Where(p => p.IsPrimaryKey).Select(x => "ORIG.[" + x.NameInDatabase + "] = TEMP.[" + x.NameInDatabase + "]");
+            var filter = string.Join(" and ",  pks);
+            var mergeCommand = string.Format(@"UPDATE [{0}].[{1}]
+                SET
+                    {4}
+                FROM
+                    [{0}].[{1}] ORIG
+                INNER JOIN
+                     [{0}].[{2}] TEMP
+                ON 
+                    {3}", schema, tableName, tempTableName, filter, setters);
+
+            using (var createCommand = new SqlCommand(str, con))
+            using (var mCommand = new SqlCommand(mergeCommand, con))
+            using (var dCommand = new SqlCommand(string.Format("DROP table {0}.[{1}]", schema, tempTableName), con))
+            {
+                createCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+                mCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+                dCommand.CommandTimeout = bulkCopyTimeout ?? 0;
+
+                createCommand.ExecuteNonQuery();
+                InsertItemsWithCheckConstraintsOn(items, schema, tempTableName, filtered, storeConnection, bulkCopyTimeout, batchSize);
+                mCommand.ExecuteNonQuery();
+                dCommand.ExecuteNonQuery();
+            }
+        }
+
 
         public bool CanHandle(System.Data.Common.DbConnection storeConnection)
         {
