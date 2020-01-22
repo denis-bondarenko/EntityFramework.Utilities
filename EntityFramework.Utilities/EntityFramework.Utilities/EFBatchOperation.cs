@@ -22,8 +22,7 @@ namespace EntityFramework.Utilities
         /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
         /// <param name="bulkCopyTimeout">Command timeout for bulk operations in seconds. SqlProvider uses 30 seconds as default. </param>
         /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>        
-        void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T; 
-        IEFBatchOperationFiltered<TContext, T> Where(Expression<Func<T, bool>> predicate);
+        void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T;
 
         /// <summary>
         /// Bulk insert all items if the Provider supports it. Otherwise it will use the default insert unless Configuration.DisableDefaultFallback is set to true in which case it would throw an exception.
@@ -33,8 +32,7 @@ namespace EntityFramework.Utilities
         /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
         /// <param name="bulkCopyTimeout">Command timeout for bulk operations in seconds. SqlProvider uses 30 seconds as default. </param>
         /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>        
-        void InsertAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T; 
-        IEFBatchOperationFiltered<TContext, T> Where(Expression<Func<T, bool>> predicate);
+        void InsertAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? bulkCopyTimeout = null, int? batchSize = null) where TEntity : class, T;
 
 
         /// <summary>
@@ -59,6 +57,8 @@ namespace EntityFramework.Utilities
         /// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
         /// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
         void UpdateAllWithCheckConstraintsOn<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, int? bulkCopyTimeout = null, DbConnection connection = null, int? batchSize = null) where TEntity : class, T;
+
+        IEFBatchOperationFiltered<TContext, T> Where(Expression<Func<T, bool>> predicate);
     }
 
     public class UpdateSpecification<T>
