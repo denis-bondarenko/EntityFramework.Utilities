@@ -164,8 +164,7 @@ pip-log.txt
 # Mac crap
 .DS_Store
 packages
-/.vs/slnx.sqlite
-/.vs/ProjectSettings.json
-/.vs/EntityFramework.Utilities/v16/TestStore/0/testlog.manifest
-/.vs/EntityFramework.Utilities/v16/TestStore/0/000-0000.testlog
-/.vs/EntityFramework.Utilities/v16/TestStore/0
+
+#Windows VS
+/.vs/
+/EntityFramework.Utilities/.vs/
