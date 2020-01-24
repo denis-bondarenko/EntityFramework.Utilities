@@ -90,7 +90,7 @@ namespace EntityFramework.Utilities
                 {
                     con.Open();
                 }
-                using (SqlBulkCopy copy = new SqlBulkCopy(con.ConnectionString, SqlBulkCopyOptions.CheckConstraints))
+                using (SqlBulkCopy copy = new SqlBulkCopy(con, SqlBulkCopyOptions.CheckConstraints, null))
                 {
                     copy.BatchSize = Math.Min(reader.RecordsAffected, batchSize ?? 15000); //default batch size
                     copy.BulkCopyTimeout = bulkCopyTimeout ?? 0;
